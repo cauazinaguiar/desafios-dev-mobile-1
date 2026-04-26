@@ -1,12 +1,16 @@
 package com.example.testes
 
+
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,6 +19,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
@@ -28,16 +34,17 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
@@ -51,6 +58,9 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 
 class MainActivity : ComponentActivity() {
+
+    val viewModel: ListaComprasViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -59,7 +69,7 @@ class MainActivity : ComponentActivity() {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     ListaDeCompras(
                         modifier = Modifier
-                            .padding(innerPadding)
+                            .padding(innerPadding), viewModel
                     )
                 }
             }
@@ -68,75 +78,70 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun ListaDeCompras(modifier: Modifier = Modifier) {
+fun ListaDeCompras(modifier: Modifier = Modifier, viewModel: ListaComprasViewModel) {
 
-    var listaDeItens by rememberSaveable { mutableStateOf(listOf<ItemCompra>()) }
+    val listaDeItens by viewModel.listaDeItens.collectAsState()
 
-    Column(
+
+    LazyColumn(
         verticalArrangement = Arrangement.Top,
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = modifier
+        modifier = modifier.padding(horizontal = 16.dp)
     ) {
-        ImagemTopo()
-        AdicionarItem(aoSalvarItem = { novoItem ->
-            listaDeItens = listaDeItens + novoItem
-        })
-        Spacer(modifier = Modifier.height(48.dp))
-        Titulo(
-            texto = "Lista de Compras"
-        )
+        item {
+            ImagemTopo()
+            AdicionarItem(aoSalvarItem = { novoItem ->
+               viewModel.adicionarItem(novoItem)
+            })
+            Spacer(modifier = Modifier.height(48.dp))
+            Titulo(
+                texto = "Lista de Compras"
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+        }
 
+        if(listaDeItens.isEmpty()) {
+            item {
+                Text(
+                    text = "Sua lista está vazia. Adicione itens a ela para não esquecer nada na próxima compra!",
+                    style = AppTypography.bodyLarge
+                )
+            }
+        }
         ListaDeItens(
             lista = listaDeItens.filter { !it.foiComprado },
             aoMudarStatus = { itemSelecionado ->
-                listaDeItens = listaDeItens.map { itemMap ->
-                    if (itemSelecionado == itemMap) {
-                        itemSelecionado.copy(foiComprado = !itemSelecionado.foiComprado)
-                    } else {
-                        itemMap
-                    }
-                }
+                viewModel.mudarStatus(itemSelecionado)
             },
             aoRemoverItem = { itemRemovido ->
-                listaDeItens = listaDeItens - itemRemovido
+                viewModel.removerItem(itemRemovido)
             },
             aoEditarItem = { itemEditado, novoTexto ->
-                listaDeItens = listaDeItens.map { itemAtual ->
-                    if (itemAtual == itemEditado) {
-                        itemAtual.copy(texto = novoTexto)
-                    } else {
-                        itemAtual
-                    }
-                }
+                viewModel.editarItem(itemEditado, novoTexto)
             }
         )
 
-        Titulo(texto = "Comprado")
+
+
 
         if (listaDeItens.any { it.foiComprado }) {
 
+            item {
+                Spacer(modifier = Modifier.height(40.dp))
+                Titulo(texto = "Comprado")
+                Spacer(modifier = Modifier.height(24.dp))
+            }
+
             ListaDeItens(
-                lista = listaDeItens.filter {it.foiComprado},
+                lista = listaDeItens.filter { it.foiComprado },
                 aoMudarStatus = { itemSelecionado ->
-                    listaDeItens = listaDeItens.map { itemMap ->
-                        if (itemSelecionado == itemMap) {
-                            itemSelecionado.copy(foiComprado = !itemSelecionado.foiComprado)
-                        } else {
-                            itemMap
-                        }
-                    }
+                    viewModel.mudarStatus(itemSelecionado)
                 },
                 aoRemoverItem = { itemRemovido ->
-                    listaDeItens = listaDeItens - itemRemovido
+                    viewModel.removerItem(itemRemovido)
                 },
                 aoEditarItem = { itemEditado, novoTexto ->
-                    listaDeItens = listaDeItens.map { itemAtual ->
-                        if (itemAtual == itemEditado) {
-                            itemAtual.copy(texto = novoTexto)
-                        } else {
-                            itemAtual
-                        }
-                    }
+                    viewModel.editarItem(itemEditado, novoTexto)
                 }
             )
 
@@ -144,25 +149,21 @@ fun ListaDeCompras(modifier: Modifier = Modifier) {
     }
 }
 
-@Composable
-fun ListaDeItens(
+fun LazyListScope.ListaDeItens(
     lista: List<ItemCompra>,
     aoMudarStatus: (item: ItemCompra) -> Unit = {},
     aoRemoverItem: (item: ItemCompra) -> Unit = {},
-    aoEditarItem: (item: ItemCompra, novoTexto: String) -> Unit = {_, _ -> },
-    modifier: Modifier = Modifier
+    aoEditarItem: (item: ItemCompra, novoTexto: String) -> Unit = { _, _ -> }
 ) {
-    Column(modifier = modifier) {
-        lista.forEach { item ->
+    items(lista.size) { index ->
             ItemDaLista(
-                item = item,
+                item = lista[index],
                 aoMudarStatus = aoMudarStatus,
                 aoRemoverItem = aoRemoverItem,
                 aoEditarItem = aoEditarItem
             )
         }
     }
-}
 
 @Composable
 fun AdicionarItem(aoSalvarItem: (item: ItemCompra) -> Unit, modifier: Modifier = Modifier) {
@@ -192,6 +193,7 @@ fun AdicionarItem(aoSalvarItem: (item: ItemCompra) -> Unit, modifier: Modifier =
             texto = ""
         },
         modifier = modifier,
+        contentPadding = PaddingValues(16.dp, 12.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = Coral
         )
@@ -200,31 +202,50 @@ fun AdicionarItem(aoSalvarItem: (item: ItemCompra) -> Unit, modifier: Modifier =
             text = "Salvar item",
             color = Color.White,
             style = AppTypography.bodyLarge,
-            modifier = Modifier
-                .padding(
-                    horizontal = 16.dp,
-                    vertical = 12.dp
-                )
         )
     }
 }
 
 fun getDataHora(): String {
     val dataHoraAtual = System.currentTimeMillis()
-    val dataHoraFormatada = SimpleDateFormat("EEEE (dd/MM/yyyy) 'às' HH:mm", Locale.forLanguageTag("pt-BR"))
+    val dataHoraFormatada =
+        SimpleDateFormat("EEEE (dd/MM/yyyy) 'às' HH:mm", Locale.forLanguageTag("pt-BR"))
     return dataHoraFormatada.format(dataHoraAtual)
 }
+
 @Composable
 fun Titulo(texto: String, modifier: Modifier = Modifier) {
-    Text(text = texto, style = AppTypography.headlineLarge, modifier = modifier)
+    Text(
+        text = texto,
+        style = AppTypography.headlineLarge,
+        modifier = modifier
+            .padding(top = 8.dp)
+            .fillMaxWidth(),
+        textAlign = TextAlign.Left
+    )
+    LinhaPontilhada(modifier = Modifier)
 }
 
+@Composable
+fun LinhaPontilhada(modifier: Modifier = Modifier) {
+    val pathEffect = PathEffect.dashPathEffect(floatArrayOf(5f, 5f), 2.5f)
+    Canvas(modifier= modifier.fillMaxWidth()) {
+        drawLine(
+            color = Coral,
+            pathEffect = pathEffect,
+            start = Offset(0f, 0f),
+            end = Offset(size.width, 0f),
+            strokeWidth = 4f
+        )
+    }
+
+}
 @Composable
 fun ItemDaLista(
     item: ItemCompra,
     aoMudarStatus: (item: ItemCompra) -> Unit = {},
     aoRemoverItem: (item: ItemCompra) -> Unit = {},
-    aoEditarItem: (item: ItemCompra, novoTexto: String) -> Unit = {_, _ -> },
+    aoEditarItem: (item: ItemCompra, novoTexto: String) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -235,7 +256,7 @@ fun ItemDaLista(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Start
         ) {
-            var textoEditado by rememberSaveable { mutableStateOf(item.texto)}
+            var textoEditado by rememberSaveable { mutableStateOf(item.texto) }
             var edicao by rememberSaveable { mutableStateOf(false) }
 
             Checkbox(
@@ -281,23 +302,24 @@ fun ItemDaLista(
                 onClick = {
                     aoRemoverItem(item)
                 },
-                modifier = Modifier.padding(end = 8.dp)
+                modifier = Modifier
+                    .padding(end = 8.dp)
+                    .size(16.dp)
             ) {
                 Icone(
-                    Icons.Default.Delete,
-                    modifier = Modifier
-                        .size(16.dp)
+                    Icons.Default.Delete
+
                 )
             }
             IconButton(
                 onClick = {
                     edicao = true
-                }
+                },
+                modifier = Modifier
+                    .size(16.dp)
             ) {
                 Icone(
-                    Icons.Default.Edit,
-                    modifier = Modifier
-                        .size(16.dp)
+                    Icons.Default.Edit
                 )
             }
         }
@@ -379,13 +401,6 @@ private fun AdicionarItemPreview() {
     }
 }
 
-@Preview
-@Composable
-private fun ListaDeComprasPreview() {
-    TestesTheme {
-        ListaDeCompras()
-    }
-}
 
 data class ItemCompra(
     val texto: String,
